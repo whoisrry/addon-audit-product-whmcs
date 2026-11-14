@@ -4,13 +4,13 @@
  * (Illuminate query builder, parameter binding otomatis).
  */
 
-namespace WHMCS\Module\Addon\HiddenProductAudit;
+namespace WHMCS\Module\Addon\ProductAudit;
 
 use WHMCS\Database\Capsule;
 
 final class Repository
 {
-    /** Status yang punya kolom sendiri; status lain dijumlah ke "Lainnya". */
+    /** Status standar WHMCS; status lain dijumlah ke "Lainnya" di ringkasan. */
     public const KNOWN_STATUSES = ['Active', 'Suspended', 'Terminated', 'Pending', 'Cancelled', 'Fraud'];
 
     private const REQUIRED_TABLES = ['tblproducts', 'tblproductgroups', 'tblhosting', 'tblclients', 'tbladmins'];
@@ -49,18 +49,22 @@ final class Repository
     }
 
     /**
-     * Q1 + Q2: product hidden (paged) dan jumlah service per status.
+     * Q1 + Q2: product (semua, atau hanya hidden) per halaman, dan jumlah
+     * service per status untuk product di halaman tersebut.
      */
-    public static function hiddenProductPage(int $page, int $perPage): array
+    public static function productPage(bool $hiddenOnly, int $page, int $perPage): array
     {
-        // [VERIFIKASI] tblproducts.hidden bernilai 1 untuk product hidden.
-        $base = Capsule::table('tblproducts as p')->where('p.hidden', 1);
+        $base = Capsule::table('tblproducts as p');
+        if ($hiddenOnly) {
+            // [VERIFIKASI] tblproducts.hidden bernilai 1 untuk product hidden.
+            $base->where('p.hidden', 1);
+        }
 
         $total = (clone $base)->count('p.id');
 
         $products = (clone $base)
             ->leftJoin('tblproductgroups as g', 'g.id', '=', 'p.gid')
-            ->select('p.id', 'p.name', 'g.name as group_name')
+            ->select('p.id', 'p.name', 'p.hidden', 'g.name as group_name')
             ->orderBy('p.id')
             ->forPage($page, $perPage)
             ->get()
@@ -98,27 +102,62 @@ final class Repository
     }
 
     /**
-     * Q4: service Terminated untuk satu product, opsional filter tanggal terminate.
+     * Q5: jumlah service per status untuk satu product. Hasil dipakai sebagai
+     * whitelist pilihan status: status standar selalu ada (meski 0), ditambah
+     * status lain yang benar-benar tercatat untuk product ini.
+     *
+     * @return array<string,int> status => jumlah
      */
-    public static function terminatedQuery(int $pid, ?string $from, ?string $to, ?string $dateCol)
+    public static function statusCounts(int $pid): array
+    {
+        $counts = array_fill_keys(self::KNOWN_STATUSES, 0);
+
+        $rows = Capsule::table('tblhosting')
+            ->where('packageid', $pid)
+            ->select('domainstatus', Capsule::raw('COUNT(*) AS total'))
+            ->groupBy('domainstatus')
+            ->get();
+
+        foreach ($rows as $row) {
+            $status = (string) $row->domainstatus;
+            if ($status !== '') {
+                $counts[$status] = (int) $row->total;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Q4: service untuk satu product, difilter status terpilih dan
+     * opsional rentang tanggal terminate.
+     */
+    public static function serviceQuery(int $pid, array $filters)
     {
         $query = Capsule::table('tblhosting as h')
             ->leftJoin('tblclients as c', 'c.id', '=', 'h.userid')
-            ->where('h.packageid', $pid)
-            ->where('h.domainstatus', 'Terminated');
+            ->where('h.packageid', $pid);
+
+        // Status sudah di-whitelist; jika semua dipilih, tidak perlu filter
+        // (agar service dengan status kosong/tidak standar ikut tampil).
+        if (!$filters['allStatuses']) {
+            $query->whereIn('h.domainstatus', $filters['statuses']);
+        }
 
         $columns = [
             'h.id', 'h.userid', 'h.domain', 'h.packageid', 'h.domainstatus',
             'c.firstname', 'c.lastname', 'c.companyname',
         ];
 
+        $dateCol = $filters['dateCol'];
         if ($dateCol !== null) {
             // [VERIFIKASI] Tipe kolom date/datetime; batas akhir dibuat inklusif.
-            if ($from !== null) {
-                $query->where('h.' . $dateCol, '>=', $from . ' 00:00:00');
+            // Service tanpa tanggal terminate otomatis tidak lolos filter ini.
+            if ($filters['from'] !== null) {
+                $query->where('h.' . $dateCol, '>=', $filters['from'] . ' 00:00:00');
             }
-            if ($to !== null) {
-                $query->where('h.' . $dateCol, '<=', $to . ' 23:59:59');
+            if ($filters['to'] !== null) {
+                $query->where('h.' . $dateCol, '<=', $filters['to'] . ' 23:59:59');
             }
             $columns[] = 'h.' . $dateCol . ' as terminated_at';
         }
@@ -126,9 +165,9 @@ final class Repository
         return $query->select($columns)->orderBy('h.id');
     }
 
-    public static function terminatedPage(int $pid, ?string $from, ?string $to, ?string $dateCol, int $page, int $perPage): array
+    public static function servicePage(int $pid, array $filters, int $page, int $perPage): array
     {
-        $query = self::terminatedQuery($pid, $from, $to, $dateCol);
+        $query = self::serviceQuery($pid, $filters);
 
         return [
             'total' => (clone $query)->count('h.id'),
@@ -140,11 +179,11 @@ final class Repository
      * Iterasi seluruh hasil Q4 per batch (keyset h.id > lastId) untuk export,
      * supaya memori tetap kecil pada data besar.
      */
-    public static function eachTerminated(int $pid, ?string $from, ?string $to, ?string $dateCol, callable $callback): void
+    public static function eachService(int $pid, array $filters, callable $callback): void
     {
         $lastId = 0;
         do {
-            $rows = self::terminatedQuery($pid, $from, $to, $dateCol)
+            $rows = self::serviceQuery($pid, $filters)
                 ->where('h.id', '>', $lastId)
                 ->limit(self::EXPORT_BATCH)
                 ->get()

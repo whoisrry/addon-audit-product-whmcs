@@ -4,9 +4,10 @@ Jalankan di staging dengan salinan database produksi yang sudah dianonimkan bila
 
 ## Instalasi
 
-- [ ] Salin folder ke `modules/addons/hiddenproductaudit/`; permission file sama dengan addon lain.
+- [ ] Salin folder ke `modules/addons/productaudit/`; permission file sama dengan addon lain.
+- [ ] Jika versi lama (`hiddenproductaudit`) terpasang: deactivate lalu hapus foldernya.
 - [ ] `php -l` untuk semua file `.php` di modul tidak menghasilkan error.
-- [ ] Modul muncul di **System Settings → Addon Modules**.
+- [ ] Modul muncul di **System Settings → Addon Modules** dengan nama *Product Audit*.
 
 ## Aktivasi
 
@@ -21,43 +22,64 @@ Jalankan di staging dengan salinan database produksi yang sudah dianonimkan bila
 - [ ] Admin dengan role lain mendapat "Akses ditolak" (termasuk jika role diberi Access Control bawaan tetapi tidak terdaftar).
 - [ ] *Allowed Admin Role IDs* kosong → semua admin ditolak.
 - [ ] Admin yang di-disable tidak bisa akses.
-- [ ] Tanpa login admin, `addonmodules.php?module=hiddenproductaudit` diarahkan ke login WHMCS.
-- [ ] Akses langsung `modules/addons/hiddenproductaudit/hiddenproductaudit.php` → "cannot be accessed directly".
+- [ ] Tanpa login admin, `addonmodules.php?module=productaudit` diarahkan ke login WHMCS.
+- [ ] Akses langsung `modules/addons/productaudit/productaudit.php` → "cannot be accessed directly".
 - [ ] File di `lib/` diakses langsung tidak menampilkan data (hanya definisi class). Pertimbangkan blokir `modules/addons/*/lib/` di web server.
+
+## Ringkasan & checkbox is Hidden
+
+- [ ] Tanpa centang *is Hidden*: semua product tampil; total = `SELECT COUNT(*) FROM tblproducts`.
+- [ ] Dengan centang: hanya product hidden; total = `SELECT COUNT(*) FROM tblproducts WHERE hidden = 1`.
+- [ ] Product hidden diberi label *Hidden* di kedua mode.
+- [ ] Status centang tetap terbawa saat pindah halaman.
+
+## Detail & filter status
+
+- [ ] Default membuka detail: semua status tercentang, semua service product tampil.
+- [ ] Jumlah di samping tiap status sama dengan `SELECT domainstatus, COUNT(*) FROM tblhosting WHERE packageid = ? GROUP BY domainstatus`.
+- [ ] Pilih sebagian status (mis. Active + Suspended) → hanya status itu yang tampil; pilihan terbawa ke paging dan export.
+- [ ] Semua checkbox dikosongkan lalu Terapkan → peringatan, dan semua status ditampilkan.
+- [ ] `status[]=Foo` atau status yang tidak ada di product → diabaikan.
+- [ ] Filter tanggal terminate hanya menampilkan service yang punya tanggal terminate dalam rentang.
+
+## Link Service ID & Client ID
+
+- [ ] Klik Service ID membuka halaman service yang tepat di `clientsservices.php` (client dan service sesuai).
+- [ ] Klik Client ID membuka profil client yang tepat di `clientssummary.php`.
+- [ ] Service dengan client yang sudah tidak ada (`userid` 0 / terhapus) tampil tanpa link dan tanpa error.
 
 ## Data kosong
 
-- [ ] Tanpa product hidden: tampil "Tidak ada product hidden untuk ditampilkan".
-- [ ] Product hidden tanpa service: semua kolom status 0.
-- [ ] Detail product tanpa service Terminated: tampil pesan kosong; export menghasilkan CSV berisi header saja.
+- [ ] Tanpa product (atau tanpa product hidden saat dicentang): tampil "Tidak ada product untuk ditampilkan".
+- [ ] Product tanpa service: semua kolom status 0; detail menampilkan pesan kosong; export berisi header saja.
 - [ ] `pid` tidak ada (mis. 999999) → "Product #... tidak ditemukan".
 
 ## Validasi input
 
-- [ ] `pid=abc`, `pid=-1`, `page=0`, `page[]=1`, `action=foo` → diabaikan/fallback ke default, tanpa error PHP.
+- [ ] `pid=abc`, `pid=-1`, `page=0`, `page[]=1`, `action=foo`, `hidden=yes` → diabaikan/fallback ke default, tanpa error PHP.
 - [ ] `from=2024-02-30` atau format lain ditolak (filter tidak diterapkan).
 - [ ] `from` > `to` → muncul peringatan dan filter tanggal diabaikan.
-- [ ] Nama product/client yang mengandung `<script>` tampil sebagai teks (tidak dieksekusi).
+- [ ] Nama product/client/domain/status yang mengandung `<script>` tampil sebagai teks (tidak dieksekusi).
 
 ## Data besar (paging)
 
-- [ ] Ringkasan dengan >100 product hidden terbagi per halaman sesuai *Rows per Page*.
-- [ ] Detail product dengan ribuan service Terminated: navigasi pertama/sebelumnya/berikutnya/terakhir benar dan filter tanggal tetap terbawa.
+- [ ] Ringkasan dengan ratusan product terbagi per halaman sesuai *Rows per Page*.
+- [ ] Detail product dengan ribuan service: navigasi pertama/sebelumnya/berikutnya/terakhir benar dan filter status/tanggal tetap terbawa.
 - [ ] `page` melebihi jumlah halaman → tabel kosong, tanpa error.
-- [ ] Waktu muat halaman wajar; cek `EXPLAIN` untuk Q2/Q4 bila lambat.
+- [ ] Waktu muat halaman wajar; cek `EXPLAIN` untuk Q2/Q4/Q5 bila lambat.
 
 ## Export CSV
 
 - [ ] Tombol Export mengunduh file `.csv` (bukan halaman HTML) dan tidak mengandung markup template WHMCS.
 - [ ] Jumlah baris CSV = jumlah service di halaman detail dengan filter yang sama (semua halaman, bukan hanya halaman aktif).
-- [ ] Filter tanggal ikut diterapkan pada export.
+- [ ] Filter status dan tanggal ikut diterapkan pada export.
 - [ ] Karakter non-ASCII tampil benar di Excel (UTF-8 BOM).
 - [ ] Nilai yang diawali `=`, `+`, `-`, `@` diawali tanda `'` (proteksi formula injection).
 - [ ] Admin tanpa izin yang membuka URL export langsung mendapat "Akses ditolak".
 
 ## Verifikasi tidak ada query tulis
 
-- [ ] Review kode: `grep -rniE "insert|update|delete|truncate|drop|alter|create|->save\(|->increment|->decrement" modules/addons/hiddenproductaudit` hanya cocok di komentar/teks UI.
+- [ ] Review kode: `grep -rniE "insert|update|delete|truncate|drop|alter|create|->save\(|->increment|->decrement" modules/addons/productaudit` hanya cocok di komentar/teks UI.
 - [ ] Aktifkan MySQL general log di staging (`SET GLOBAL general_log = 'ON'`), jalankan semua skenario di atas, lalu pastikan query yang berasal dari modul hanya `SELECT` / query `information_schema`. Matikan lagi log setelahnya.
 - [ ] Alternatif: jalankan dengan user DB staging yang hanya punya hak `SELECT` pada tabel terkait untuk sesi uji modul.
 - [ ] Checksum/`COUNT(*)` `tblproducts`, `tblhosting`, `tblclients` sebelum dan sesudah pengujian sama.

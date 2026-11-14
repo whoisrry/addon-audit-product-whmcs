@@ -4,7 +4,7 @@
  * nilai yang tidak valid diganti default, bukan diteruskan ke query.
  */
 
-namespace WHMCS\Module\Addon\HiddenProductAudit;
+namespace WHMCS\Module\Addon\ProductAudit;
 
 final class Input
 {
@@ -24,6 +24,30 @@ final class Input
         ]);
 
         return $value === false ? $default : $value;
+    }
+
+    /** Checkbox: true hanya jika nilainya persis "1". */
+    public static function flag(string $key): bool
+    {
+        return ($_GET[$key] ?? null) === '1';
+    }
+
+    /**
+     * Daftar status terpilih, hanya yang ada di whitelist $allowed
+     * (urutan mengikuti $allowed, duplikat dibuang).
+     *
+     * @param string[] $allowed
+     * @return string[]
+     */
+    public static function statuses(string $key, array $allowed): array
+    {
+        $raw = $_GET[$key] ?? [];
+        if (!is_array($raw)) {
+            return [];
+        }
+        $raw = array_filter($raw, 'is_string');
+
+        return array_values(array_filter($allowed, static fn ($s) => in_array($s, $raw, true)));
     }
 
     /**

@@ -8,7 +8,7 @@
  * [VERIFIKASI] Bergantung pada tbladmins (id, roleid, disabled) di WHMCS 8.x.
  */
 
-namespace WHMCS\Module\Addon\HiddenProductAudit;
+namespace WHMCS\Module\Addon\ProductAudit;
 
 use WHMCS\Database\Capsule;
 

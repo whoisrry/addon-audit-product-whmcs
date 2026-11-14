@@ -1,10 +1,11 @@
 <?php
 /**
- * Hidden Product Audit - addon module WHMCS (READ-ONLY).
+ * Product Audit - addon module WHMCS (READ-ONLY).
  *
- * Menampilkan ringkasan product yang di-hidden dan daftar service Terminated
- * yang masih merujuk product tersebut. Modul ini TIDAK menulis ke database:
- * tidak ada INSERT/UPDATE/DELETE/DDL, termasuk saat activate/deactivate.
+ * Menampilkan ringkasan product (opsional hanya yang hidden) beserta jumlah
+ * service per status, dan daftar service per product dengan filter status.
+ * Modul ini TIDAK menulis ke database: tidak ada INSERT/UPDATE/DELETE/DDL,
+ * termasuk saat activate/deactivate.
  *
  * Target: WHMCS 8.13.7 (kompatibel 8.x). Bagian yang bergantung versi
  * ditandai [VERSI], query yang perlu dicek di skema Anda ditandai [VERIFIKASI].
@@ -19,19 +20,19 @@ require_once __DIR__ . '/lib/Input.php';
 require_once __DIR__ . '/lib/Repository.php';
 require_once __DIR__ . '/lib/View.php';
 
-use WHMCS\Module\Addon\HiddenProductAudit\Access;
-use WHMCS\Module\Addon\HiddenProductAudit\Input;
-use WHMCS\Module\Addon\HiddenProductAudit\Repository;
-use WHMCS\Module\Addon\HiddenProductAudit\View;
+use WHMCS\Module\Addon\ProductAudit\Access;
+use WHMCS\Module\Addon\ProductAudit\Input;
+use WHMCS\Module\Addon\ProductAudit\Repository;
+use WHMCS\Module\Addon\ProductAudit\View;
 
-function hiddenproductaudit_config()
+function productaudit_config()
 {
     return [
-        'name' => 'Hidden Product Audit',
-        'description' => 'Audit read-only product hidden dan service Terminated yang masih merujuknya.',
+        'name' => 'Product Audit',
+        'description' => 'Audit read-only product dan service yang merujuknya, per status.',
         'author' => 'Internal',
         'language' => 'english',
-        'version' => '1.0.0',
+        'version' => '1.1.0',
         'fields' => [
             'allowed_role_ids' => [
                 'FriendlyName' => 'Allowed Admin Role IDs',
@@ -54,7 +55,7 @@ function hiddenproductaudit_config()
 /**
  * Activate hanya memeriksa keberadaan tabel. Tidak membuat/mengubah skema.
  */
-function hiddenproductaudit_activate()
+function productaudit_activate()
 {
     try {
         $missing = Repository::missingTables();
@@ -81,12 +82,12 @@ function hiddenproductaudit_activate()
 /**
  * Deactivate tidak menghapus apa pun karena modul tidak pernah membuat data.
  */
-function hiddenproductaudit_deactivate()
+function productaudit_deactivate()
 {
     return ['status' => 'success', 'description' => 'Modul dinonaktifkan. Tidak ada data yang dihapus.'];
 }
 
-function hiddenproductaudit_output($vars)
+function productaudit_output($vars)
 {
     // [VERSI] WHMCS 8.x menyimpan ID admin yang login di $_SESSION['adminid'].
     $adminId = isset($_SESSION['adminid']) ? (int) $_SESSION['adminid'] : 0;
@@ -108,10 +109,61 @@ function hiddenproductaudit_output($vars)
     $action = Input::action();
     $page = Input::int('page', 1, 1);
     $pid = Input::int('pid', 0, 1);
-    $from = Input::date('from');
-    $to = Input::date('to');
+
+    if ($action === 'summary') {
+        $hiddenOnly = Input::flag('hidden');
+        $data = Repository::productPage($hiddenOnly, $page, $perPage);
+        echo View::summary($data, $hiddenOnly, $page, $perPage);
+        return;
+    }
+
+    // detail & export: butuh product yang valid.
+    $product = $pid > 0 ? Repository::product($pid) : null;
+    if ($product === null) {
+        echo View::alerts([$pid > 0 ? 'Product #' . $pid . ' tidak ditemukan.' : 'Product ID tidak valid.'])
+            . '<p><a href="' . View::e(View::url()) . '">&laquo; Kembali ke ringkasan</a></p>';
+        return;
+    }
 
     $warnings = [];
+    $filters = productaudit_filters($pid, $warnings);
+
+    if ($action === 'export') {
+        productaudit_export($product, $filters);
+        return;
+    }
+
+    $result = Repository::servicePage($pid, $filters, $page, $perPage);
+    echo View::alerts($warnings) . View::detail([
+        'product' => $product,
+        'filters' => $filters,
+        'rows' => $result['rows'],
+        'total' => $result['total'],
+        'page' => $page,
+        'perPage' => $perPage,
+    ]);
+}
+
+/**
+ * Bangun filter detail/export dari $_GET yang sudah divalidasi.
+ *
+ * @return array{statuses: string[], statusOptions: array<string,int>, allStatuses: bool, from: ?string, to: ?string, dateCol: ?string}
+ */
+function productaudit_filters(int $pid, array &$warnings): array
+{
+    // Opsi status = status standar + status lain yang benar-benar ada di product ini.
+    $statusOptions = Repository::statusCounts($pid);
+    $statuses = Input::statuses('status', array_keys($statusOptions));
+    $allStatuses = $statuses === [] || count($statuses) === count($statusOptions);
+    if ($statuses === []) {
+        if (Input::flag('sf')) {
+            $warnings[] = 'Tidak ada status yang dipilih; menampilkan semua status.';
+        }
+        $statuses = array_keys($statusOptions);
+    }
+
+    $from = Input::date('from');
+    $to = Input::date('to');
     if ($from !== null && $to !== null && $from > $to) {
         $warnings[] = 'Tanggal "dari" lebih besar dari "sampai"; filter tanggal diabaikan.';
         $from = $to = null;
@@ -123,57 +175,28 @@ function hiddenproductaudit_output($vars)
         $from = $to = null;
     }
 
-    if ($action === 'export') {
-        hiddenproductaudit_export($pid, $from, $to, $dateCol);
-        return;
-    }
-
-    if ($action === 'detail' && $pid > 0) {
-        $product = Repository::product($pid);
-        if ($product === null) {
-            echo View::alerts(['Product #' . $pid . ' tidak ditemukan.']);
-            return;
-        }
-        if (empty($product->hidden)) {
-            $warnings[] = 'Product #' . $pid . ' saat ini tidak berstatus hidden.';
-        }
-
-        $result = Repository::terminatedPage($pid, $from, $to, $dateCol, $page, $perPage);
-        echo View::alerts($warnings) . View::detail([
-            'product' => $product,
-            'from' => $from,
-            'to' => $to,
-            'dateCol' => $dateCol,
-            'rows' => $result['rows'],
-            'total' => $result['total'],
-            'page' => $page,
-            'perPage' => $perPage,
-        ]);
-        return;
-    }
-
-    $data = Repository::hiddenProductPage($page, $perPage);
-    echo View::alerts($warnings) . View::summary($data, $page, $perPage);
+    return [
+        'statuses' => $statuses,
+        'statusOptions' => $statusOptions,
+        'allStatuses' => $allStatuses,
+        'from' => $from,
+        'to' => $to,
+        'dateCol' => $dateCol,
+    ];
 }
 
 /**
  * Export CSV seluruh hasil filter (semua halaman) untuk satu product.
  */
-function hiddenproductaudit_export($pid, $from, $to, $dateCol)
+function productaudit_export(object $product, array $filters)
 {
-    $product = $pid > 0 ? Repository::product($pid) : null;
-    if ($product === null) {
-        echo View::alerts(['Export membutuhkan product ID yang valid.']);
-        return;
-    }
-
     // [VERSI] Buang output buffer template admin WHMCS agar file CSV bersih.
     // Uji di staging: perilaku buffering admin area bisa berbeda antar versi.
     while (ob_get_level() > 0) {
         ob_end_clean();
     }
 
-    $filename = 'hidden-product-' . (int) $pid . '-terminated-' . date('Ymd-His') . '.csv';
+    $filename = 'product-' . (int) $product->id . '-services-' . date('Ymd-His') . '.csv';
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('X-Content-Type-Options: nosniff');
@@ -186,7 +209,7 @@ function hiddenproductaudit_export($pid, $from, $to, $dateCol)
         'product_id', 'product_name', 'status', 'terminated_at',
     ]);
 
-    Repository::eachTerminated($pid, $from, $to, $dateCol, function ($row) use ($out, $product) {
+    Repository::eachService((int) $product->id, $filters, function ($row) use ($out, $product) {
         fputcsv($out, array_map([View::class, 'csvCell'], [
             $row->id,
             $row->userid,
