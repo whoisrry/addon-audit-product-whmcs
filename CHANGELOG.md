@@ -4,6 +4,14 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-14
+
+### Removed
+
+- Field konfigurasi **Allowed Admin Role IDs** dan cek role tambahan (`lib/Access.php`).
+  Akses kini hanya diatur lewat checklist **Access Control** bawaan WHMCS; setelah update,
+  pastikan role yang diinginkan sudah dicentang di sana.
+
 ## [1.1.0] - 2026-11-14
 
 ### Changed

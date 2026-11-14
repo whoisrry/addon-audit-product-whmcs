@@ -1,6 +1,6 @@
 # Daftar Query
 
-Semua query ada di `lib/Repository.php` dan `lib/Access.php`, dibangun dengan
+Semua query ada di `lib/Repository.php`, dibangun dengan
 `WHMCS\Database\Capsule` (parameter binding otomatis). **Tidak ada** INSERT, UPDATE,
 DELETE, atau DDL. Nama kolom tanggal (`termination_date`) diambil dari daftar tetap
 setelah dicek di skema, bukan dari input. Nilai status dari input hanya diterima jika
@@ -8,7 +8,6 @@ ada di whitelist hasil Q5.
 
 | # | Lokasi | SQL kurang lebih | Tujuan |
 |---|--------|------------------|--------|
-| Q0 | `Access::isAllowed` | `SELECT roleid, disabled FROM tbladmins WHERE id = ? LIMIT 1` | Cek role dan status admin yang login. |
 | Q1 | `Repository::productPage` | `SELECT COUNT(p.id) FROM tblproducts p [WHERE p.hidden = 1]` | Total product untuk paging (filter hidden hanya jika *is Hidden* dicentang). |
 | Q1b | idem | `SELECT p.id, p.name, p.hidden, g.name AS group_name FROM tblproducts p LEFT JOIN tblproductgroups g ON g.id = p.gid [WHERE p.hidden = 1] ORDER BY p.id LIMIT ? OFFSET ?` | Daftar product per halaman. |
 | Q2 | idem | `SELECT packageid, domainstatus, COUNT(*) AS total FROM tblhosting WHERE packageid IN (?, ...) GROUP BY packageid, domainstatus` | Jumlah service per status, hanya untuk product di halaman aktif. |
@@ -24,7 +23,6 @@ ada di whitelist hasil Q5.
 ```sql
 SHOW COLUMNS FROM tblproducts LIKE 'hidden';
 SHOW COLUMNS FROM tblhosting  WHERE Field IN ('termination_date','domainstatus','packageid','userid','domain');
-SHOW COLUMNS FROM tbladmins   WHERE Field IN ('roleid','disabled');
 SELECT DISTINCT domainstatus FROM tblhosting;            -- status di luar daftar standar masuk "Lainnya"
 SELECT hidden, COUNT(*) FROM tblproducts GROUP BY hidden; -- pastikan product hidden = 1
 SHOW INDEX FROM tblhosting;                               -- pastikan ada index di packageid

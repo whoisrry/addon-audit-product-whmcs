@@ -19,7 +19,7 @@ Target: **WHMCS 8.13.7** (seharusnya kompatibel dengan 8.x; PHP mengikuti versi 
   - Service ID membuka halaman service client (`clientsservices.php`), Client ID membuka
     profil client (`clientssummary.php`).
 - Export CSV seluruh hasil filter (semua halaman), dengan perlindungan CSV injection.
-- Akses dibatasi ke admin role yang terdaftar di konfigurasi modul (fail closed).
+- Akses dibatasi lewat checklist **Access Control** bawaan WHMCS (per admin role).
 
 ## Struktur
 
@@ -27,7 +27,6 @@ Target: **WHMCS 8.13.7** (seharusnya kompatibel dengan 8.x; PHP mengikuti versi 
 modules/addons/productaudit/
 ├── productaudit.php   # _config, _activate, _deactivate, _output, filter, export CSV
 └── lib/
-    ├── Access.php     # cek role admin (tbladmins)
     ├── Input.php      # validasi $_GET (action, int, flag, status, tanggal)
     ├── Repository.php # semua query SELECT via Capsule
     └── View.php       # render HTML (escape), link admin, pager, helper CSV
@@ -41,11 +40,9 @@ docs/
 1. Salin `modules/addons/productaudit/` ke `<root WHMCS>/modules/addons/`.
 2. Admin area: **System Settings → Addon Modules** → Activate *Product Audit*.
 3. Klik **Configure**:
-   - **Allowed Admin Role IDs**: ID role yang boleh akses, dipisah koma (lihat
-     **System Settings → Administrator Roles**; Full Administrator biasanya ID 1).
-     Kosong berarti semua ditolak.
    - **Rows per Page**: 10–200 (default 50).
-   - **Access Control** (bawaan WHMCS): centang role yang sama.
+   - **Access Control**: centang admin role yang boleh membuka modul. Role yang tidak
+     dicentang tidak melihat menu modul dan ditolak WHMCS saat membuka URL-nya.
 4. Buka **Addons → Product Audit**.
 
 > Jika sebelumnya sudah memasang versi 1.0.0 (`hiddenproductaudit`), deactivate modul lama
@@ -61,8 +58,8 @@ Ditandai `[VERSI]` dan `[VERIFIKASI]` di kode.
   Nilai bisa kosong/`0000-00-00` untuk service lama atau yang belum di-terminate; service tanpa
   tanggal terminate otomatis tidak tampil saat filter tanggal dipakai.
 - `tblhosting.domainstatus` sebagai status service, `tblhosting.packageid` → `tblproducts.id`.
-- `tbladmins.roleid` dan `tbladmins.disabled` untuk cek akses.
-- `$_SESSION['adminid']` sebagai ID admin yang login.
+- Pembatasan akses sepenuhnya mengandalkan Access Control bawaan WHMCS untuk addon module,
+  termasuk URL export CSV (`addonmodules.php?module=productaudit&action=export`).
 - URL admin `clientsservices.php?userid=&id=` dan `clientssummary.php?userid=`.
 - Export CSV membuang output buffer admin WHMCS lalu `exit`; pastikan file yang
   diunduh bersih (tanpa HTML) di staging.

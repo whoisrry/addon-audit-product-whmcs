@@ -18,10 +18,9 @@ Jalankan di staging dengan salinan database produksi yang sudah dianonimkan bila
 
 ## Akses
 
-- [ ] Admin dengan role terdaftar di *Allowed Admin Role IDs* bisa membuka modul.
-- [ ] Admin dengan role lain mendapat "Akses ditolak" (termasuk jika role diberi Access Control bawaan tetapi tidak terdaftar).
-- [ ] *Allowed Admin Role IDs* kosong → semua admin ditolak.
-- [ ] Admin yang di-disable tidak bisa akses.
+- [ ] Admin dengan role yang dicentang di *Access Control* bisa membuka modul dari menu Addons.
+- [ ] Admin dengan role yang tidak dicentang tidak melihat menu modul, dan membuka `addonmodules.php?module=productaudit` langsung ditolak WHMCS.
+- [ ] Hal yang sama berlaku untuk URL detail dan export (`&action=detail&pid=...`, `&action=export&pid=...`).
 - [ ] Tanpa login admin, `addonmodules.php?module=productaudit` diarahkan ke login WHMCS.
 - [ ] Akses langsung `modules/addons/productaudit/productaudit.php` → "cannot be accessed directly".
 - [ ] File di `lib/` diakses langsung tidak menampilkan data (hanya definisi class). Pertimbangkan blokir `modules/addons/*/lib/` di web server.
@@ -75,7 +74,7 @@ Jalankan di staging dengan salinan database produksi yang sudah dianonimkan bila
 - [ ] Filter status dan tanggal ikut diterapkan pada export.
 - [ ] Karakter non-ASCII tampil benar di Excel (UTF-8 BOM).
 - [ ] Nilai yang diawali `=`, `+`, `-`, `@` diawali tanda `'` (proteksi formula injection).
-- [ ] Admin tanpa izin yang membuka URL export langsung mendapat "Akses ditolak".
+- [ ] Admin dengan role yang tidak dicentang di *Access Control* tidak bisa mengunduh lewat URL export langsung.
 
 ## Verifikasi tidak ada query tulis
 

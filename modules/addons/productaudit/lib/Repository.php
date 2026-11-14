@@ -13,7 +13,7 @@ final class Repository
     /** Status standar WHMCS; status lain dijumlah ke "Lainnya" di ringkasan. */
     public const KNOWN_STATUSES = ['Active', 'Suspended', 'Terminated', 'Pending', 'Cancelled', 'Fraud'];
 
-    private const REQUIRED_TABLES = ['tblproducts', 'tblproductgroups', 'tblhosting', 'tblclients', 'tbladmins'];
+    private const REQUIRED_TABLES = ['tblproducts', 'tblproductgroups', 'tblhosting', 'tblclients'];
 
     /** Batch untuk export (keyset pagination). */
     private const EXPORT_BATCH = 500;

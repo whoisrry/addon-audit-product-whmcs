@@ -15,12 +15,10 @@ if (!defined('WHMCS')) {
     die('This file cannot be accessed directly');
 }
 
-require_once __DIR__ . '/lib/Access.php';
 require_once __DIR__ . '/lib/Input.php';
 require_once __DIR__ . '/lib/Repository.php';
 require_once __DIR__ . '/lib/View.php';
 
-use WHMCS\Module\Addon\ProductAudit\Access;
 use WHMCS\Module\Addon\ProductAudit\Input;
 use WHMCS\Module\Addon\ProductAudit\Repository;
 use WHMCS\Module\Addon\ProductAudit\View;
@@ -32,15 +30,11 @@ function productaudit_config()
         'description' => 'Audit read-only product dan service yang merujuknya, per status.',
         'author' => 'Internal',
         'language' => 'english',
-        'version' => '1.1.0',
+        'version' => '1.2.0',
+        // Akses admin diatur lewat checklist "Access Control" bawaan WHMCS
+        // (System Settings > Addon Modules > Configure). WHMCS hanya memanggil
+        // productaudit_output() untuk role yang dicentang di sana.
         'fields' => [
-            'allowed_role_ids' => [
-                'FriendlyName' => 'Allowed Admin Role IDs',
-                'Type' => 'text',
-                'Size' => '40',
-                'Default' => '',
-                'Description' => 'ID admin role yang boleh membuka modul, dipisah koma (contoh: 1,3). Kosong = semua ditolak.',
-            ],
             'page_size' => [
                 'FriendlyName' => 'Rows per Page',
                 'Type' => 'text',
@@ -89,13 +83,8 @@ function productaudit_deactivate()
 
 function productaudit_output($vars)
 {
-    // [VERSI] WHMCS 8.x menyimpan ID admin yang login di $_SESSION['adminid'].
-    $adminId = isset($_SESSION['adminid']) ? (int) $_SESSION['adminid'] : 0;
-    if (!Access::isAllowed($adminId, (string) ($vars['allowed_role_ids'] ?? ''))) {
-        echo '<div class="alert alert-danger">Akses ditolak. Role admin Anda tidak terdaftar di konfigurasi modul ini.</div>';
-        return;
-    }
-
+    // Pembatasan akses dilakukan WHMCS sebelum fungsi ini dipanggil
+    // (login admin + role tercentang di Access Control modul).
     $missing = Repository::missingTables();
     if ($missing !== []) {
         echo '<div class="alert alert-danger">Tabel WHMCS tidak ditemukan: ' . View::e(implode(', ', $missing)) . '</div>';
