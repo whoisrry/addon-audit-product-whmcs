@@ -11,7 +11,10 @@ Target: **WHMCS 8.13.7** (seharusnya kompatibel dengan 8.x; PHP mengikuti versi 
 
 - Ringkasan product: ID, nama (dengan label *Hidden*), group, jumlah service per status
   (Active, Suspended, Terminated, Pending, Cancelled, Fraud, Lainnya, Total), dengan paging.
-  Centang **is Hidden** untuk hanya menampilkan product hidden; tanpa centang semua product tampil.
+  - Cari berdasarkan nama product (sebagian kata) atau ID product.
+  - Filter per product group (dropdown).
+  - Centang **is Hidden** untuk hanya menampilkan product hidden; tanpa centang semua product tampil.
+  - Filter bisa digabung, ikut terbawa ke paging, dan dipertahankan saat kembali dari halaman detail.
 - Detail per product: semua service product tersebut (service ID, client ID, nama client,
   domain/service, product, status, tanggal terminate), dengan paging.
   - Pilih status yang ditampilkan lewat checkbox (default semua status, lengkap dengan jumlahnya).
@@ -27,7 +30,7 @@ Target: **WHMCS 8.13.7** (seharusnya kompatibel dengan 8.x; PHP mengikuti versi 
 modules/addons/productaudit/
 ├── productaudit.php   # _config, _activate, _deactivate, _output, filter, export CSV
 └── lib/
-    ├── Input.php      # validasi $_GET (action, int, flag, status, tanggal)
+    ├── Input.php      # validasi $_GET (action, int, teks, flag, status, tanggal)
     ├── Repository.php # semua query SELECT via Capsule
     └── View.php       # render HTML (escape), link admin, pager, helper CSV
 docs/

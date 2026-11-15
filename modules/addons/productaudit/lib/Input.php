@@ -26,6 +26,21 @@ final class Input
         return $value === false ? $default : $value;
     }
 
+    /**
+     * Teks bebas (kata kunci pencarian): di-trim, karakter kontrol dibuang,
+     * dipotong ke $maxLength karakter. Hanya dipakai lewat parameter binding.
+     */
+    public static function text(string $key, int $maxLength): string
+    {
+        $raw = $_GET[$key] ?? '';
+        if (!is_string($raw)) {
+            return '';
+        }
+        $clean = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $raw));
+
+        return mb_substr($clean, 0, $maxLength, 'UTF-8');
+    }
+
     /** Checkbox: true hanya jika nilainya persis "1". */
     public static function flag(string $key): bool
     {

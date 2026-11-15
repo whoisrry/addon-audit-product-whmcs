@@ -30,7 +30,7 @@ function productaudit_config()
         'description' => 'Audit read-only product dan service yang merujuknya, per status.',
         'author' => 'Internal',
         'language' => 'english',
-        'version' => '1.2.0',
+        'version' => '1.3.0',
         // Akses admin diatur lewat checklist "Access Control" bawaan WHMCS
         // (System Settings > Addon Modules > Configure). WHMCS hanya memanggil
         // productaudit_output() untuk role yang dicentang di sana.
@@ -99,10 +99,14 @@ function productaudit_output($vars)
     $page = Input::int('page', 1, 1);
     $pid = Input::int('pid', 0, 1);
 
+    // Filter ringkasan juga dibawa ke halaman detail agar tombol "Kembali"
+    // mengembalikan admin ke hasil pencarian yang sama.
+    $groups = Repository::groups();
+    $search = productaudit_search_filters($groups);
+
     if ($action === 'summary') {
-        $hiddenOnly = Input::flag('hidden');
-        $data = Repository::productPage($hiddenOnly, $page, $perPage);
-        echo View::summary($data, $hiddenOnly, $page, $perPage);
+        $data = Repository::productPage($search, $page, $perPage);
+        echo View::summary($data, $search, $groups, $page, $perPage);
         return;
     }
 
@@ -110,7 +114,7 @@ function productaudit_output($vars)
     $product = $pid > 0 ? Repository::product($pid) : null;
     if ($product === null) {
         echo View::alerts([$pid > 0 ? 'Product #' . $pid . ' tidak ditemukan.' : 'Product ID tidak valid.'])
-            . '<p><a href="' . View::e(View::url()) . '">&laquo; Kembali ke ringkasan</a></p>';
+            . '<p><a href="' . View::e(View::url(View::searchParams($search))) . '">&laquo; Kembali ke ringkasan</a></p>';
         return;
     }
 
@@ -130,7 +134,25 @@ function productaudit_output($vars)
         'total' => $result['total'],
         'page' => $page,
         'perPage' => $perPage,
+        'search' => $search,
     ]);
+}
+
+/**
+ * Filter halaman ringkasan: kata kunci, group, dan is Hidden.
+ *
+ * @param array<int,string> $groups gid => nama group (whitelist gid)
+ * @return array{q: string, gid: int, hidden: bool}
+ */
+function productaudit_search_filters(array $groups): array
+{
+    $gid = Input::int('gid', 0, 1);
+
+    return [
+        'q' => Input::text('q', 100),
+        'gid' => isset($groups[$gid]) ? $gid : 0,
+        'hidden' => Input::flag('hidden'),
+    ];
 }
 
 /**

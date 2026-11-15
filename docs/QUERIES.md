@@ -8,8 +8,9 @@ ada di whitelist hasil Q5.
 
 | # | Lokasi | SQL kurang lebih | Tujuan |
 |---|--------|------------------|--------|
-| Q1 | `Repository::productPage` | `SELECT COUNT(p.id) FROM tblproducts p [WHERE p.hidden = 1]` | Total product untuk paging (filter hidden hanya jika *is Hidden* dicentang). |
-| Q1b | idem | `SELECT p.id, p.name, p.hidden, g.name AS group_name FROM tblproducts p LEFT JOIN tblproductgroups g ON g.id = p.gid [WHERE p.hidden = 1] ORDER BY p.id LIMIT ? OFFSET ?` | Daftar product per halaman. |
+| Q6 | `Repository::groups` | `SELECT id, name FROM tblproductgroups ORDER BY name` | Opsi dropdown group, sekaligus whitelist input `gid`. |
+| Q1 | `Repository::productPage` | `SELECT COUNT(p.id) FROM tblproducts p WHERE 1 [AND p.hidden = 1] [AND p.gid = ?] [AND (p.name LIKE ? [OR p.id = ?])]` | Total product untuk paging. Setiap filter hanya dipakai jika diisi; `OR p.id = ?` hanya jika kata kunci berupa angka. Wildcard `%`/`_` di kata kunci di-escape. |
+| Q1b | idem | `SELECT p.id, p.name, p.hidden, g.name AS group_name FROM tblproducts p LEFT JOIN tblproductgroups g ON g.id = p.gid WHERE <filter Q1> ORDER BY p.id LIMIT ? OFFSET ?` | Daftar product per halaman. |
 | Q2 | idem | `SELECT packageid, domainstatus, COUNT(*) AS total FROM tblhosting WHERE packageid IN (?, ...) GROUP BY packageid, domainstatus` | Jumlah service per status, hanya untuk product di halaman aktif. |
 | Q3 | `Repository::product` | `SELECT p.id, p.name, p.hidden, g.name FROM tblproducts p LEFT JOIN tblproductgroups g ON g.id = p.gid WHERE p.id = ? LIMIT 1` | Header halaman detail dan validasi product ID. |
 | Q5 | `Repository::statusCounts` | `SELECT domainstatus, COUNT(*) AS total FROM tblhosting WHERE packageid = ? GROUP BY domainstatus` | Opsi checkbox status + jumlahnya, sekaligus whitelist input `status[]`. |

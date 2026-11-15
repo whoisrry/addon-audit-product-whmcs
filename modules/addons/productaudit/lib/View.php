@@ -68,20 +68,56 @@ final class View
         return $text;
     }
 
-    public static function summary(array $data, bool $hiddenOnly, int $page, int $perPage): string
+    /** Parameter URL dari filter ringkasan (nilai kosong dibuang oleh url()). */
+    public static function searchParams(array $search): array
     {
+        return [
+            'q' => $search['q'],
+            'gid' => $search['gid'],
+            'hidden' => $search['hidden'] ? '1' : null,
+        ];
+    }
+
+    /** Hidden input agar filter ringkasan ikut terbawa saat form detail dikirim. */
+    private static function searchHiddenInputs(array $search): string
+    {
+        $html = '';
+        foreach (array_filter(self::searchParams($search), static fn ($v) => $v !== null && $v !== '' && $v !== 0) as $name => $value) {
+            $html .= '<input type="hidden" name="' . self::e($name) . '" value="' . self::e($value) . '">';
+        }
+
+        return $html;
+    }
+
+    public static function summary(array $data, array $search, array $groups, int $page, int $perPage): string
+    {
+        $groupOptions = '<option value="">Semua group</option>';
+        foreach ($groups as $gid => $name) {
+            $groupOptions .= '<option value="' . (int) $gid . '"' . ($search['gid'] === $gid ? ' selected' : '') . '>'
+                . self::e($name) . '</option>';
+        }
+
+        $isFiltered = $search['q'] !== '' || $search['gid'] > 0 || $search['hidden'];
+
         $html = '<h3>Product Audit</h3>'
             . '<form method="get" action="addonmodules.php" class="form-inline" style="margin-bottom:10px">'
             . '<input type="hidden" name="module" value="' . self::MODULE . '">'
+            . '<input type="search" class="form-control input-sm" name="q" maxlength="100" style="min-width:240px"'
+            . ' placeholder="Cari nama atau ID product" value="' . self::e($search['q']) . '"> '
+            . '<select name="gid" class="form-control input-sm">' . $groupOptions . '</select> '
             . '<div class="checkbox"><label><input type="checkbox" name="hidden" value="1"'
-            . ($hiddenOnly ? ' checked' : '') . ' onchange="this.form.submit()"> is Hidden</label></div> '
-            . '<button type="submit" class="btn btn-default btn-sm">Terapkan</button>'
+            . ($search['hidden'] ? ' checked' : '') . ' onchange="this.form.submit()"> is Hidden</label></div> '
+            . '<button type="submit" class="btn btn-primary btn-sm">Cari</button> '
+            . '<a class="btn btn-default btn-sm" href="' . self::e(self::url()) . '">Reset</a>'
             . '</form>'
-            . '<p>Total product' . ($hiddenOnly ? ' hidden' : '') . ': <strong>' . (int) $data['total'] . '</strong></p>';
+            . '<p>' . ($isFiltered ? 'Product sesuai filter' : 'Total product') . ': <strong>'
+            . (int) $data['total'] . '</strong></p>';
 
         if ($data['products'] === []) {
-            return $html . '<div class="alert alert-info">Tidak ada product untuk ditampilkan.</div>';
+            return $html . '<div class="alert alert-info">Tidak ada product yang cocok dengan filter.</div>';
         }
+
+        $back = self::searchParams($search);
 
         $html .= '<div class="table-responsive"><table class="table table-striped table-condensed">'
             . '<thead><tr><th>ID</th><th>Product</th><th>Group</th>';
@@ -110,12 +146,12 @@ final class View
                 . '<td class="text-right">' . ($total - $known) . '</td>'
                 . '<td class="text-right"><strong>' . $total . '</strong></td>'
                 . '<td><a class="btn btn-default btn-xs" href="'
-                . self::e(self::url(['action' => 'detail', 'pid' => (int) $product->id])) . '">Detail</a></td>'
+                . self::e(self::url(['action' => 'detail', 'pid' => (int) $product->id] + $back)) . '">Detail</a></td>'
                 . '</tr>';
         }
 
         return $html . '</tbody></table></div>'
-            . self::pager('summary', ['hidden' => $hiddenOnly ? '1' : null], $page, $perPage, (int) $data['total']);
+            . self::pager('summary', $back, $page, $perPage, (int) $data['total']);
     }
 
     public static function detail(array $ctx): string
@@ -124,16 +160,17 @@ final class View
         $f = $ctx['filters'];
         $pid = (int) $product->id;
         $label = '#' . $pid . ' ' . $product->name;
+        $back = self::searchParams($ctx['search']);
         $params = [
             'pid' => $pid,
             'status' => $f['allStatuses'] ? null : $f['statuses'],
             'from' => $f['from'],
             'to' => $f['to'],
-        ];
+        ] + $back;
         $disabled = $f['dateCol'] === null ? ' disabled' : '';
         $badge = !empty($product->hidden) ? ' <span class="label label-default">Hidden</span>' : '';
 
-        $html = '<p><a href="' . self::e(self::url()) . '">&laquo; Kembali ke ringkasan</a></p>'
+        $html = '<p><a href="' . self::e(self::url($back)) . '">&laquo; Kembali ke ringkasan</a></p>'
             . '<h3>Service &mdash; ' . self::e($label) . $badge . '</h3>'
             . '<p>Group: ' . self::e($product->group_name ?? '-')
             . ' &middot; Jumlah service (sesuai filter): <strong>' . (int) $ctx['total'] . '</strong></p>';
@@ -143,6 +180,7 @@ final class View
             . '<input type="hidden" name="action" value="detail">'
             . '<input type="hidden" name="pid" value="' . $pid . '">'
             . '<input type="hidden" name="sf" value="1">'
+            . self::searchHiddenInputs($ctx['search'])
             . '<div style="margin-bottom:8px"><strong>Status:</strong> ';
         foreach ($f['statusOptions'] as $status => $count) {
             $checked = in_array($status, $f['statuses'], true) ? ' checked' : '';
@@ -155,7 +193,7 @@ final class View
             . '<label>sampai&nbsp;<input type="date" class="form-control input-sm" name="to" value="'
             . self::e($f['to'] ?? '') . '"' . $disabled . '></label> '
             . '<button type="submit" class="btn btn-primary btn-sm">Terapkan</button> '
-            . '<a class="btn btn-default btn-sm" href="' . self::e(self::url(['action' => 'detail', 'pid' => $pid])) . '">Reset</a> '
+            . '<a class="btn btn-default btn-sm" href="' . self::e(self::url(['action' => 'detail', 'pid' => $pid] + $back)) . '">Reset</a> '
             . '<a class="btn btn-success btn-sm" href="' . self::e(self::url(['action' => 'export'] + $params)) . '">Export CSV</a>'
             . '</div></form>';
 

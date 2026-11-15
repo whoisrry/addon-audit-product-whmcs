@@ -32,6 +32,17 @@ Jalankan di staging dengan salinan database produksi yang sudah dianonimkan bila
 - [ ] Product hidden diberi label *Hidden* di kedua mode.
 - [ ] Status centang tetap terbawa saat pindah halaman.
 
+## Pencarian & filter ringkasan
+
+- [ ] Kata kunci sebagian nama (mis. "hosting") menampilkan product yang namanya mengandung kata itu, tidak peka huruf besar/kecil (sesuai collation DB).
+- [ ] Kata kunci angka (mis. "12") menampilkan product dengan ID 12 dan product yang namanya mengandung "12".
+- [ ] Kata kunci `%` atau `_` dicari sebagai karakter biasa, bukan wildcard.
+- [ ] Dropdown group hanya menampilkan product di group tersebut; `gid` yang tidak ada diabaikan.
+- [ ] Kombinasi kata kunci + group + is Hidden memberi hasil irisan yang benar.
+- [ ] Filter tetap terbawa saat paging, saat membuka Detail, dan saat klik "Kembali ke ringkasan".
+- [ ] Tombol Reset mengosongkan semua filter.
+- [ ] Kata kunci berisi `<script>` atau tanda kutip tampil kembali di kotak pencarian sebagai teks.
+
 ## Detail & filter status
 
 - [ ] Default membuka detail: semua status tercentang, semua service product tampil.

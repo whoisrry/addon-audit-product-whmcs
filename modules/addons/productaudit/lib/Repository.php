@@ -49,15 +49,47 @@ final class Repository
     }
 
     /**
-     * Q1 + Q2: product (semua, atau hanya hidden) per halaman, dan jumlah
-     * service per status untuk product di halaman tersebut.
+     * Q6: daftar product group untuk dropdown filter (juga whitelist gid).
+     *
+     * @return array<int,string> gid => nama group
      */
-    public static function productPage(bool $hiddenOnly, int $page, int $perPage): array
+    public static function groups(): array
+    {
+        $groups = [];
+        $rows = Capsule::table('tblproductgroups')->select('id', 'name')->orderBy('name')->get();
+        foreach ($rows as $row) {
+            $groups[(int) $row->id] = (string) $row->name;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Q1 + Q2: product per halaman sesuai filter pencarian, dan jumlah
+     * service per status untuk product di halaman tersebut.
+     *
+     * @param array{q: string, gid: int, hidden: bool} $search
+     */
+    public static function productPage(array $search, int $page, int $perPage): array
     {
         $base = Capsule::table('tblproducts as p');
-        if ($hiddenOnly) {
+        if ($search['hidden']) {
             // [VERIFIKASI] tblproducts.hidden bernilai 1 untuk product hidden.
             $base->where('p.hidden', 1);
+        }
+        if ($search['gid'] > 0) {
+            $base->where('p.gid', $search['gid']);
+        }
+        if ($search['q'] !== '') {
+            // Wildcard LIKE dari input di-escape agar dicari sebagai teks biasa.
+            $like = '%' . addcslashes($search['q'], '%_\\') . '%';
+            $q = $search['q'];
+            $base->where(static function ($w) use ($like, $q) {
+                $w->where('p.name', 'like', $like);
+                if (ctype_digit($q)) {
+                    $w->orWhere('p.id', (int) $q);
+                }
+            });
         }
 
         $total = (clone $base)->count('p.id');

@@ -4,6 +4,15 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-15
+
+### Added
+
+- Pencarian di halaman ringkasan: kata kunci nama atau ID product, dropdown product group,
+  dan checkbox **is Hidden** (tetap ada), dengan tombol Cari dan Reset.
+- Filter ringkasan ikut terbawa ke paging dan ke halaman detail, sehingga tombol
+  "Kembali ke ringkasan" kembali ke hasil pencarian yang sama.
+
 ## [1.2.0] - 2026-11-14
 
 ### Removed
