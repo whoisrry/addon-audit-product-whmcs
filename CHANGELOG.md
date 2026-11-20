@@ -4,6 +4,22 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-20
+
+### Added
+
+- Konfirmasi password admin saat membuka modul (seperti `configgeneral.php`), berlaku
+  15 menit sejak aktivitas terakhir, terkunci 5 menit setelah 5 kali salah.
+- Tombol **Delete** di sebelah **Detail**, hanya aktif jika product tidak punya service sama sekali.
+- Halaman konfirmasi hapus **Ya, hapus / Tidak, batal** tanpa JavaScript; hapus via POST
+  dengan token CSRF, dalam satu transaksi, beserta data turunan product.
+- Pencatatan ke Activity Log WHMCS untuk password salah dan product yang dihapus.
+
+### Changed
+
+- Modul tidak lagi sepenuhnya read-only: satu-satunya operasi tulis adalah hapus product
+  tanpa service (`lib/ProductDeleter.php`).
+
 ## [1.3.0] - 2026-11-15
 
 ### Added

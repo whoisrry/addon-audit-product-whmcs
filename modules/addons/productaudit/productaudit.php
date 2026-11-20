@@ -1,11 +1,13 @@
 <?php
 /**
- * Product Audit - addon module WHMCS (READ-ONLY).
+ * Product Audit - addon module WHMCS.
  *
  * Menampilkan ringkasan product (opsional hanya yang hidden) beserta jumlah
  * service per status, dan daftar service per product dengan filter status.
- * Modul ini TIDAK menulis ke database: tidak ada INSERT/UPDATE/DELETE/DDL,
- * termasuk saat activate/deactivate.
+ *
+ * Satu-satunya operasi tulis adalah hapus product yang tidak punya service
+ * sama sekali (lib/ProductDeleter.php), setelah konfirmasi password admin dan
+ * konfirmasi Ya/Tidak. Activate/deactivate tidak mengubah skema.
  *
  * Target: WHMCS 8.13.7 (kompatibel 8.x). Bagian yang bergantung versi
  * ditandai [VERSI], query yang perlu dicek di skema Anda ditandai [VERIFIKASI].
@@ -18,8 +20,12 @@ if (!defined('WHMCS')) {
 require_once __DIR__ . '/lib/Input.php';
 require_once __DIR__ . '/lib/Repository.php';
 require_once __DIR__ . '/lib/View.php';
+require_once __DIR__ . '/lib/Auth.php';
+require_once __DIR__ . '/lib/ProductDeleter.php';
 
+use WHMCS\Module\Addon\ProductAudit\Auth;
 use WHMCS\Module\Addon\ProductAudit\Input;
+use WHMCS\Module\Addon\ProductAudit\ProductDeleter;
 use WHMCS\Module\Addon\ProductAudit\Repository;
 use WHMCS\Module\Addon\ProductAudit\View;
 
@@ -27,10 +33,10 @@ function productaudit_config()
 {
     return [
         'name' => 'Product Audit',
-        'description' => 'Audit read-only product dan service yang merujuknya, per status.',
+        'description' => 'Audit product dan service yang merujuknya per status, serta hapus product tanpa service.',
         'author' => 'Internal',
         'language' => 'english',
-        'version' => '1.3.0',
+        'version' => '1.4.0',
         // Akses admin diatur lewat checklist "Access Control" bawaan WHMCS
         // (System Settings > Addon Modules > Configure). WHMCS hanya memanggil
         // productaudit_output() untuk role yang dicentang di sana.
@@ -103,18 +109,73 @@ function productaudit_output($vars)
     // mengembalikan admin ke hasil pencarian yang sama.
     $groups = Repository::groups();
     $search = productaudit_search_filters($groups);
+    $back = View::searchParams($search);
 
-    if ($action === 'summary') {
-        $data = Repository::productPage($search, $page, $perPage);
-        echo View::summary($data, $search, $groups, $page, $perPage);
+    $isPost = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
+    $postAction = $isPost ? Input::postString('pa_action', 20) : '';
+
+    // 1) Konfirmasi password admin, seperti halaman sensitif WHMCS (configgeneral.php).
+    //    Halaman yang diminta (kecuali export) dipertahankan sebagai tujuan form.
+    $returnUrl = View::url(
+        ($action === 'export' ? [] : ['action' => $action === 'summary' ? null : $action, 'pid' => $pid]) + $back
+    );
+    if ($postAction === 'auth') {
+        $password = $_POST['pa_password'] ?? '';
+        unset($_POST['pa_password']);
+        $error = !Auth::checkCsrf($_POST['pa_csrf'] ?? null)
+            ? 'Formulir kedaluwarsa, silakan coba lagi.'
+            : Auth::confirm(is_string($password) ? $password : '');
+        $password = null;
+        if ($error !== null) {
+            echo View::passwordForm($returnUrl, $error);
+            return;
+        }
+    }
+    if (!Auth::isConfirmed()) {
+        echo View::passwordForm($returnUrl, null);
         return;
     }
 
-    // detail & export: butuh product yang valid.
+    // 2) Proses hapus (POST dari halaman konfirmasi Ya/Tidak).
+    $notices = [];
+    $errors = [];
+    if ($postAction === 'delete') {
+        $deletePid = Input::postInt('pid');
+        if (!Auth::checkCsrf($_POST['pa_csrf'] ?? null)) {
+            $errors[] = 'Formulir kedaluwarsa, product tidak dihapus. Silakan ulangi.';
+        } elseif ($deletePid <= 0) {
+            $errors[] = 'Product ID tidak valid.';
+        } else {
+            $result = ProductDeleter::delete($deletePid);
+            if ($result['ok']) {
+                $notices[] = $result['message'];
+                Auth::log('Product Audit: ' . $result['message'] . ' (admin ID ' . Auth::adminId() . ')');
+            } else {
+                $errors[] = $result['message'];
+            }
+        }
+        $action = 'summary';
+    }
+
+    if ($action === 'summary') {
+        $data = Repository::productPage($search, $page, $perPage);
+        echo View::alerts($notices, 'success') . View::alerts($errors, 'danger')
+            . View::summary($data, $search, $groups, $page, $perPage);
+        return;
+    }
+
+    // detail, export & delete: butuh product yang valid.
     $product = $pid > 0 ? Repository::product($pid) : null;
     if ($product === null) {
         echo View::alerts([$pid > 0 ? 'Product #' . $pid . ' tidak ditemukan.' : 'Product ID tidak valid.'])
-            . '<p><a href="' . View::e(View::url(View::searchParams($search))) . '">&laquo; Kembali ke ringkasan</a></p>';
+            . '<p><a href="' . View::e(View::url($back)) . '">&laquo; Kembali ke ringkasan</a></p>';
+        return;
+    }
+
+    if ($action === 'delete') {
+        // Halaman konfirmasi Ya/Tidak (tanpa JavaScript). Penghapusan baru
+        // terjadi lewat POST dari form di halaman ini.
+        echo View::deleteConfirm($product, Repository::serviceCount($pid), $search);
         return;
     }
 

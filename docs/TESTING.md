@@ -25,6 +25,35 @@ Jalankan di staging dengan salinan database produksi yang sudah dianonimkan bila
 - [ ] Akses langsung `modules/addons/productaudit/productaudit.php` → "cannot be accessed directly".
 - [ ] File di `lib/` diakses langsung tidak menampilkan data (hanya definisi class). Pertimbangkan blokir `modules/addons/*/lib/` di web server.
 
+## Konfirmasi password
+
+- [ ] Membuka modul pertama kali menampilkan form *Konfirmasi Password*, belum ada data product yang tampil.
+- [ ] Membuka URL detail/delete langsung juga meminta password dulu, lalu setelah benar langsung masuk ke halaman yang dituju.
+- [ ] Password benar → modul terbuka; password salah → "Password salah" dan tercatat di Activity Log.
+- [ ] 5 kali salah → dikunci 5 menit; password benar pun ditolak selama terkunci.
+- [ ] Setelah 15 menit tanpa aktivitas di modul, password diminta lagi.
+- [ ] Login sebagai admin lain di browser yang sama → password diminta lagi (konfirmasi terikat admin ID).
+- [ ] Logout lalu login ulang → password diminta lagi.
+- [ ] Password tidak muncul di Activity Log, log web server (POST body), maupun HTML halaman.
+- [ ] Admin dengan login SSO/OAuth tanpa password lokal: pastikan perilakunya sesuai kebijakan (tidak bisa masuk).
+- [ ] Kirim POST form password dengan `pa_csrf` salah → "Formulir kedaluwarsa".
+
+## Tombol Delete & konfirmasi
+
+- [ ] Tombol Delete muncul di sebelah Detail untuk setiap product.
+- [ ] Product dengan Total service > 0 → tombol Delete abu-abu (disabled), tooltip menyebut jumlah service.
+- [ ] Product dengan Total = 0 → tombol Delete aktif; klik membuka halaman konfirmasi (bukan pop-up JS).
+- [ ] Halaman konfirmasi menampilkan ID, nama, group, status hidden, jumlah service 0, peringatan permanen, tombol **Ya, hapus** dan **Tidak, batal**.
+- [ ] **Tidak, batal** kembali ke ringkasan dengan filter sebelumnya; product tidak berubah.
+- [ ] **Ya, hapus** → pesan sukses hijau, product hilang dari daftar, tercatat di Activity Log beserta jumlah data terkait.
+- [ ] Buka `&action=delete&pid=<product yang punya service>` langsung → pesan "tidak bisa dihapus" tanpa tombol Ya.
+- [ ] Buka halaman konfirmasi, lalu (di tab lain) buat order service untuk product itu, lalu klik Ya → ditolak "masih dirujuk N service".
+- [ ] Klik Ya dua kali / refresh halaman hasil POST → percobaan kedua menampilkan "tidak ditemukan atau sudah dihapus", tanpa error.
+- [ ] POST hapus dengan `pa_csrf` salah atau tanpa konfirmasi password → tidak ada yang terhapus.
+- [ ] Setelah hapus, cek data turunan product sudah bersih: `tblpricing (type='product')`, `tblcustomfields (type='product')`, `tblproductconfiglinks`, `tblproduct_upgrade_products`, `tblproduct_downloads`, `tblproducts_slugs`.
+- [ ] Bandingkan dengan menghapus product uji serupa lewat **Products/Services** bawaan WHMCS (general log aktif): catat tabel yang dihapus WHMCS tetapi tidak oleh modul.
+- [ ] Halaman order/cart client dan **Products/Services** admin tetap normal setelah product dihapus.
+
 ## Ringkasan & checkbox is Hidden
 
 - [ ] Tanpa centang *is Hidden*: semua product tampil; total = `SELECT COUNT(*) FROM tblproducts`.
@@ -87,9 +116,9 @@ Jalankan di staging dengan salinan database produksi yang sudah dianonimkan bila
 - [ ] Nilai yang diawali `=`, `+`, `-`, `@` diawali tanda `'` (proteksi formula injection).
 - [ ] Admin dengan role yang tidak dicentang di *Access Control* tidak bisa mengunduh lewat URL export langsung.
 
-## Verifikasi tidak ada query tulis
+## Verifikasi query tulis hanya dari fitur Delete
 
-- [ ] Review kode: `grep -rniE "insert|update|delete|truncate|drop|alter|create|->save\(|->increment|->decrement" modules/addons/productaudit` hanya cocok di komentar/teks UI.
-- [ ] Aktifkan MySQL general log di staging (`SET GLOBAL general_log = 'ON'`), jalankan semua skenario di atas, lalu pastikan query yang berasal dari modul hanya `SELECT` / query `information_schema`. Matikan lagi log setelahnya.
-- [ ] Alternatif: jalankan dengan user DB staging yang hanya punya hak `SELECT` pada tabel terkait untuk sesi uji modul.
-- [ ] Checksum/`COUNT(*)` `tblproducts`, `tblhosting`, `tblclients` sebelum dan sesudah pengujian sama.
+- [ ] Review kode: `grep -rniE "insert|update\(|->delete\(|truncate|drop|alter|create|->save\(|->increment|->decrement" modules/addons/productaudit` hanya cocok di `lib/ProductDeleter.php` dan komentar/teks UI.
+- [ ] Aktifkan MySQL general log di staging (`SET GLOBAL general_log = 'ON'`), jalankan semua skenario selain Delete, lalu pastikan query dari modul hanya `SELECT` / `information_schema` (plus `INSERT INTO tblactivitylog` dari `logActivity` untuk password salah). Matikan lagi log setelahnya.
+- [ ] Skenario Delete: query tulis hanya `DELETE` sesuai daftar D2–D9 di `docs/QUERIES.md`, di dalam satu transaksi.
+- [ ] Checksum/`COUNT(*)` `tblhosting` dan `tblclients` sebelum dan sesudah semua pengujian sama.

@@ -8,7 +8,23 @@ namespace WHMCS\Module\Addon\ProductAudit;
 
 final class Input
 {
-    private const ACTIONS = ['summary', 'detail', 'export'];
+    private const ACTIONS = ['summary', 'detail', 'export', 'delete'];
+
+    /** String dari $_POST (tanpa trim), dipotong ke $maxLength byte. */
+    public static function postString(string $key, int $maxLength): string
+    {
+        $value = $_POST[$key] ?? '';
+
+        return is_string($value) ? substr($value, 0, $maxLength) : '';
+    }
+
+    /** Integer positif dari $_POST, 0 jika tidak valid. */
+    public static function postInt(string $key): int
+    {
+        $value = filter_var($_POST[$key] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+        return $value === false ? 0 : $value;
+    }
 
     public static function action(): string
     {

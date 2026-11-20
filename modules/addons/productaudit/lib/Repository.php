@@ -13,7 +13,7 @@ final class Repository
     /** Status standar WHMCS; status lain dijumlah ke "Lainnya" di ringkasan. */
     public const KNOWN_STATUSES = ['Active', 'Suspended', 'Terminated', 'Pending', 'Cancelled', 'Fraud'];
 
-    private const REQUIRED_TABLES = ['tblproducts', 'tblproductgroups', 'tblhosting', 'tblclients'];
+    private const REQUIRED_TABLES = ['tblproducts', 'tblproductgroups', 'tblhosting', 'tblclients', 'tbladmins'];
 
     /** Batch untuk export (keyset pagination). */
     private const EXPORT_BATCH = 500;
@@ -131,6 +131,14 @@ final class Repository
             ->where('p.id', $pid)
             ->select('p.id', 'p.name', 'p.hidden', 'g.name as group_name')
             ->first();
+    }
+
+    /**
+     * Q7: jumlah seluruh service (semua status) yang merujuk product.
+     */
+    public static function serviceCount(int $pid): int
+    {
+        return Capsule::table('tblhosting')->where('packageid', $pid)->count();
     }
 
     /**

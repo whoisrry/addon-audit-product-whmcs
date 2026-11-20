@@ -34,14 +34,77 @@ final class View
         return 'clientsservices.php?' . http_build_query(['userid' => $userId, 'id' => $serviceId]);
     }
 
-    public static function alerts(array $messages): string
+    /** @param string $type warning|danger|success|info */
+    public static function alerts(array $messages, string $type = 'warning'): string
     {
+        $type = in_array($type, ['warning', 'danger', 'success', 'info'], true) ? $type : 'warning';
         $html = '';
         foreach ($messages as $message) {
-            $html .= '<div class="alert alert-warning">' . self::e($message) . '</div>';
+            $html .= '<div class="alert alert-' . $type . '">' . self::e($message) . '</div>';
         }
 
         return $html;
+    }
+
+    /**
+     * Form konfirmasi password admin sebelum modul bisa dipakai.
+     */
+    public static function passwordForm(string $actionUrl, ?string $error): string
+    {
+        return '<div class="panel panel-default" style="max-width:440px;margin:40px auto">'
+            . '<div class="panel-heading"><strong>Konfirmasi Password</strong></div>'
+            . '<div class="panel-body">'
+            . '<p>Product Audit berisi aksi sensitif. Masukkan password admin Anda untuk melanjutkan.</p>'
+            . ($error !== null ? self::alerts([$error], 'danger') : '')
+            . '<form method="post" action="' . self::e($actionUrl) . '" autocomplete="off">'
+            . Auth::csrfFields()
+            . '<input type="hidden" name="pa_action" value="auth">'
+            . '<div class="form-group"><label for="pa_password">Password</label>'
+            . '<input type="password" class="form-control" id="pa_password" name="pa_password"'
+            . ' maxlength="1024" required autofocus autocomplete="current-password"></div>'
+            . '<button type="submit" class="btn btn-primary">Konfirmasi</button>'
+            . '</form></div></div>';
+    }
+
+    /**
+     * Halaman konfirmasi hapus: tombol "Ya" mengirim POST, "Tidak" kembali
+     * ke ringkasan. Tidak memakai JavaScript.
+     */
+    public static function deleteConfirm(object $product, int $services, array $search): string
+    {
+        $back = self::searchParams($search);
+        $pid = (int) $product->id;
+        $html = '<p><a href="' . self::e(self::url($back)) . '">&laquo; Kembali ke ringkasan</a></p>';
+
+        if ($services > 0) {
+            return $html . self::alerts([
+                'Product #' . $pid . ' (' . $product->name . ') masih dirujuk ' . $services
+                . ' service, sehingga tidak bisa dihapus.',
+            ], 'danger');
+        }
+
+        return $html
+            . '<div class="panel panel-danger" style="max-width:640px">'
+            . '<div class="panel-heading"><strong>Hapus product ini?</strong></div>'
+            . '<div class="panel-body">'
+            . '<table class="table table-condensed" style="margin-bottom:15px">'
+            . '<tr><th style="width:140px">Product ID</th><td>' . $pid . '</td></tr>'
+            . '<tr><th>Nama</th><td>' . self::e($product->name) . '</td></tr>'
+            . '<tr><th>Group</th><td>' . self::e($product->group_name ?? '-') . '</td></tr>'
+            . '<tr><th>Hidden</th><td>' . (!empty($product->hidden) ? 'Ya' : 'Tidak') . '</td></tr>'
+            . '<tr><th>Jumlah service</th><td>0</td></tr>'
+            . '</table>'
+            . '<p class="text-danger">Penghapusan bersifat permanen: product beserta harga, custom field, '
+            . 'link configurable option, relasi upgrade, download, dan slug-nya ikut terhapus. '
+            . 'Pastikan sudah ada backup database.</p>'
+            . '<form method="post" action="' . self::e(self::url($back)) . '" style="display:inline">'
+            . Auth::csrfFields()
+            . '<input type="hidden" name="pa_action" value="delete">'
+            . '<input type="hidden" name="pid" value="' . $pid . '">'
+            . '<button type="submit" class="btn btn-danger">Ya, hapus</button>'
+            . '</form> '
+            . '<a class="btn btn-default" href="' . self::e(self::url($back)) . '">Tidak, batal</a>'
+            . '</div></div>';
     }
 
     public static function clientName(object $row): string
@@ -145,8 +208,15 @@ final class View
                 . $cells
                 . '<td class="text-right">' . ($total - $known) . '</td>'
                 . '<td class="text-right"><strong>' . $total . '</strong></td>'
-                . '<td><a class="btn btn-default btn-xs" href="'
-                . self::e(self::url(['action' => 'detail', 'pid' => (int) $product->id] + $back)) . '">Detail</a></td>'
+                . '<td style="white-space:nowrap"><a class="btn btn-default btn-xs" href="'
+                . self::e(self::url(['action' => 'detail', 'pid' => (int) $product->id] + $back)) . '">Detail</a> '
+                // Delete hanya aktif jika product tidak punya service sama sekali.
+                . ($total === 0
+                    ? '<a class="btn btn-danger btn-xs" href="'
+                        . self::e(self::url(['action' => 'delete', 'pid' => (int) $product->id] + $back)) . '">Delete</a>'
+                    : '<button type="button" class="btn btn-danger btn-xs" disabled'
+                        . ' title="Masih ada ' . $total . ' service">Delete</button>')
+                . '</td>'
                 . '</tr>';
         }
 
